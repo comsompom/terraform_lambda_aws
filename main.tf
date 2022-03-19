@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">=0.12"
+  required_version = ">= 0.12"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -9,12 +9,15 @@ terraform {
 }
 
 variable "aws_region" {
-  type    = string
-  default = "eu-central-1"
+  type    = map
+  default = {
+    dev  = "eu-central-1"
+    prod = "eu-east-1"
+  }
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = var.aws_region[terraform.workspace]
 }
 
 data "archive_file" "myzip" {
@@ -25,15 +28,17 @@ data "archive_file" "myzip" {
 
 resource "aws_lambda_function" "test_python_lambda" {
   filename      = "main.zip"
-  function_name = "test_python_lambda_first"
-  role          = aws_iam_role.test_python_role
-  handler       = "lambda_handler"
+  function_name = "${test_python_lambda_first_}terraform.workspace"
+  role          = aws_iam_role.test_python_role.arn
+  handler       = "main.lambda_handler"
   runtime       = "python3.8"
+  source_code_hash = "data.archive_file.myzip.output_base64sha256"
 }
 
 resource "aws_iam_role" "test_python_role" {
-  name          = "first_test_python_role"
-  assume_policy = <<EOF
+  name = "first_test_python_role"
+
+  assume_role_policy = <<EOF
   {
     "Version": "2022-03-19",
     "Statement": [
@@ -47,4 +52,5 @@ resource "aws_iam_role" "test_python_role" {
       }
     ]
   }
+  EOF
 }
